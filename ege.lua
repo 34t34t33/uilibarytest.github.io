@@ -100,16 +100,20 @@ function WindUI:CreateWindow(opts)
     sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
     sidebarLayout.Parent = sidebar
 
-    local content = Instance.new("Frame")
-    content.Name = rand()
-    content.Size = UDim2.new(1,-140,1,-44)
-    content.Position = UDim2.new(0,136,0,44)
-    content.BackgroundColor3 = Color3.fromRGB(32,32,32)
-    content.BorderSizePixel = 0
-    content.Parent = win
+    local contentScroll = Instance.new("ScrollingFrame")
+    contentScroll.Name = rand()
+    contentScroll.Size = UDim2.new(1,-140,1,-44)
+    contentScroll.Position = UDim2.new(0,136,0,44)
+    contentScroll.BackgroundColor3 = Color3.fromRGB(32,32,32)
+    contentScroll.BorderSizePixel = 0
+    contentScroll.Parent = win
+    contentScroll.CanvasSize = UDim2.new(0,0,1,0)
+    contentScroll.ScrollBarThickness = 7
+    contentScroll.AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
+    contentScroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
     local contentCorner = Instance.new("UICorner")
     contentCorner.CornerRadius = UDim.new(0,12)
-    contentCorner.Parent = content
+    contentCorner.Parent = contentScroll
 
     local tabs = {}
     local selectedTab = nil
@@ -169,7 +173,7 @@ function WindUI:CreateWindow(opts)
         mainGui = mainGui,
         win = win,
         sidebar = sidebar,
-        content = content,
+        contentScroll = contentScroll,
         tabs = tabs,
         selectedTab = selectedTab,
         selectTab = function(self,tab)
@@ -179,6 +183,7 @@ function WindUI:CreateWindow(opts)
             end
             tab.btn.BackgroundColor3 = Color3.fromRGB(54,54,54)
             tab.page.Visible = true
+            self.contentScroll.CanvasPosition = Vector2.new(0,0)
             selectedTab = tab
         end
     }, WinProto)
@@ -208,11 +213,10 @@ function WinProto:Tab(tabOpts)
     end
     local page = Instance.new("Frame")
     page.Name = rand()
-    page.Size = UDim2.new(1,0,1,0)
-    page.Position = UDim2.new(0,0,0,0)
+    page.Size = UDim2.new(1,0,0,0)
     page.BackgroundTransparency = 1
     page.Visible = false
-    page.Parent = self.content
+    page.Parent = self.contentScroll
     local pageLayout = Instance.new("UIListLayout")
     pageLayout.Padding = UDim.new(0,15)
     pageLayout.FillDirection = Enum.FillDirection.Vertical
@@ -313,13 +317,14 @@ function TabProto:Toggle(opts)
     label.Position = UDim2.new(0,18,0,0)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = bg
-    local pill = Instance.new("Frame")
+    local pill = Instance.new("TextButton")
     pill.Name = rand()
     pill.Size = UDim2.new(0,44,0,22)
     pill.BackgroundColor3 = Color3.fromRGB(90,90,90)
     pill.Position = UDim2.new(1,-60,0.5,-11)
     pill.AnchorPoint = Vector2.new(0,0.5)
     pill.Parent = bg
+    pill.AutoButtonColor = false
     local pillCorner = Instance.new("UICorner")
     pillCorner.CornerRadius = UDim.new(1,0)
     pillCorner.Parent = pill
@@ -333,18 +338,20 @@ function TabProto:Toggle(opts)
     dotCorner.CornerRadius = UDim.new(1,0)
     dotCorner.Parent = dot
     local value = opts.Default
-    pill.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            value = not value
-            if value then
-                dot.Position = UDim2.new(1,-20,0.5,-9)
-                pill.BackgroundColor3 = Color3.fromRGB(32,160,80)
-            else
-                dot.Position = UDim2.new(0,2,0.5,-9)
-                pill.BackgroundColor3 = Color3.fromRGB(90,90,90)
-            end
-            pcall(opts.Callback, value)
+    local function set(val,invoke)
+        value = val
+        if value then
+            dot.Position = UDim2.new(1,-20,0.5,-9)
+            pill.BackgroundColor3 = Color3.fromRGB(32,160,80)
+        else
+            dot.Position = UDim2.new(0,2,0.5,-9)
+            pill.BackgroundColor3 = Color3.fromRGB(90,90,90)
         end
+        if invoke then pcall(opts.Callback, value) end
+    end
+    set(value, false)
+    pill.MouseButton1Click:Connect(function()
+        set(not value, true)
     end)
     return f
 end
@@ -413,16 +420,24 @@ function TabProto:Slider(opts)
     thumbCorner.CornerRadius = UDim.new(1,0)
     thumbCorner.Parent = thumb
     local dragging = false
+    local value = opts.Default
+    local function set(val, invoke)
+        val = math.clamp(val, opts.Min, opts.Max)
+        local rel = (val-opts.Min)/(opts.Max-opts.Min)
+        sliderFill.Size = UDim2.new(rel,0,1,0)
+        thumb.Position = UDim2.new(rel,-7,0.5,-6)
+        valueLbl.Text = tostring(val)
+        value = val
+        if invoke then pcall(opts.Callback, val) end
+    end
+    set(value, false)
     sliderBack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             local function setValue(x)
                 local rel = math.clamp((x - sliderBack.AbsolutePosition.X)/sliderBack.AbsoluteSize.X,0,1)
                 local val = math.floor((opts.Min + rel*(opts.Max-opts.Min))*100)/100
-                sliderFill.Size = UDim2.new(rel,0,1,0)
-                thumb.Position = UDim2.new(rel,-7,0.5,-6)
-                valueLbl.Text = tostring(val)
-                pcall(opts.Callback,val)
+                set(val, true)
             end
             setValue(UserInputService:GetMouseLocation().X)
             local move, up
@@ -493,15 +508,27 @@ function TabProto:Dropdown(opts)
     dropCorner.Parent = dropBtn
     local ddOpen = false
     local ddFrame = nil
+    local mainGui = bg:FindFirstAncestorOfClass("ScreenGui")
+
+    local function closeDropdown()
+        if ddOpen and ddFrame then
+            ddFrame:Destroy()
+            ddOpen = false
+            ddFrame = nil
+        end
+    end
+
     dropBtn.MouseButton1Click:Connect(function()
-        if ddOpen then if ddFrame then ddFrame:Destroy() end ddOpen = false return end
+        if ddOpen then closeDropdown() return end
         ddOpen = true
         ddFrame = Instance.new("Frame")
         ddFrame.Name = rand()
         ddFrame.Size = UDim2.new(0,130,0,#opts.Values*30)
-        ddFrame.Position = UDim2.new(1,-130,1,0)
+        local pos = bg.AbsolutePosition + Vector2.new(bg.AbsoluteSize.X-130, bg.AbsoluteSize.Y)
+        ddFrame.Position = UDim2.new(0, pos.X, 0, pos.Y)
         ddFrame.BackgroundColor3 = Color3.fromRGB(44,44,44)
-        ddFrame.Parent = bg
+        ddFrame.ZIndex = 1000
+        ddFrame.Parent = mainGui
         local ddCorner = Instance.new("UICorner")
         ddCorner.CornerRadius = UDim.new(0,12)
         ddCorner.Parent = ddFrame
@@ -518,6 +545,7 @@ function TabProto:Dropdown(opts)
             optBtn.TextColor3 = Color3.fromRGB(230,230,230)
             optBtn.BackgroundColor3 = Color3.fromRGB(54,54,54)
             optBtn.Size = UDim2.new(1,0,0,26)
+            optBtn.ZIndex = 1001
             optBtn.Parent = ddFrame
             local ocorner = Instance.new("UICorner")
             ocorner.CornerRadius = UDim.new(0,8)
@@ -525,10 +553,22 @@ function TabProto:Dropdown(opts)
             optBtn.MouseButton1Click:Connect(function()
                 selLbl.Text = tostring(v)
                 pcall(opts.Callback,v)
-                ddFrame:Destroy()
-                ddOpen = false
+                closeDropdown()
             end)
         end
+        local connection
+        connection = UserInputService.InputBegan:Connect(function(input)
+            if ddOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if not ddFrame then return end
+                local mouse = UserInputService:GetMouseLocation()
+                local abs = ddFrame.AbsolutePosition
+                local size = ddFrame.AbsoluteSize
+                if not (mouse.X >= abs.X and mouse.X <= abs.X+size.X and mouse.Y >= abs.Y and mouse.Y <= abs.Y+size.Y) then
+                    closeDropdown()
+                    if connection then connection:Disconnect() end
+                end
+            end
+        end)
     end)
     return f
 end
