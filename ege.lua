@@ -1,8 +1,9 @@
+-- WindUI-like Roblox UI Library (Fixed & Beautified)
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local function rand(n) return HttpService:GenerateGUID(false):gsub("-", ""):sub(1, n or 12) end
-local protectgui = syn and syn.protect_gui or function(g) g.Parent = CoreGui end
+local protectgui = (syn and syn.protect_gui) or function(g) g.Parent = CoreGui end
 
 local WindUI = {}
 WindUI.__index = WindUI
@@ -20,6 +21,7 @@ function WindUI:CreateWindow(opts)
     protectgui(mainGui)
     mainGui.IgnoreGuiInset = true
     mainGui.ResetOnSpawn = false
+    mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
     local win = Instance.new("Frame")
     win.Name = rand()
@@ -29,6 +31,7 @@ function WindUI:CreateWindow(opts)
     win.AnchorPoint = Vector2.new(0,0)
     win.BorderSizePixel = 0
     win.Parent = mainGui
+    win.ClipsDescendants = true
     local winCorner = Instance.new("UICorner")
     winCorner.CornerRadius = UDim.new(0,18)
     winCorner.Parent = win
@@ -110,13 +113,20 @@ function WindUI:CreateWindow(opts)
     contentScroll.CanvasSize = UDim2.new(0,0,0,0)
     contentScroll.ScrollBarThickness = 7
     contentScroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+    contentScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
     local contentCorner = Instance.new("UICorner")
     contentCorner.CornerRadius = UDim.new(0,12)
     contentCorner.Parent = contentScroll
+    local contentPadding = Instance.new("UIPadding")
+    contentPadding.PaddingTop = UDim.new(0, 12)
+    contentPadding.PaddingLeft = UDim.new(0, 12)
+    contentPadding.PaddingRight = UDim.new(0, 12)
+    contentPadding.Parent = contentScroll
 
     local tabs = {}
     local selectedTab = nil
 
+    -- Dragging (unchanged)
     local dragging, dragInput, dragStart, startPos
     top.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -198,6 +208,7 @@ function WinProto:Tab(tabOpts)
     btn.BackgroundColor3 = Color3.fromRGB(36,36,36)
     btn.Size = UDim2.new(1,-14,0,38)
     btn.Parent = self.sidebar
+    btn.AutoButtonColor = false
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0,10)
     btnCorner.Parent = btn
@@ -217,13 +228,14 @@ function WinProto:Tab(tabOpts)
     page.Visible = false
     page.Parent = self.contentScroll
     local pageLayout = Instance.new("UIListLayout")
-    pageLayout.Padding = UDim.new(0,15)
+    pageLayout.Padding = UDim.new(0,18) -- Spacing between elements
     pageLayout.FillDirection = Enum.FillDirection.Vertical
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
     pageLayout.Parent = page
 
     local function resize()
         page.Size = UDim2.new(1,0,0,pageLayout.AbsoluteContentSize.Y)
-        self.contentScroll.CanvasSize = UDim2.new(0,0,0,pageLayout.AbsoluteContentSize.Y+16)
+        self.contentScroll.CanvasSize = UDim2.new(0,0,0,pageLayout.AbsoluteContentSize.Y+24)
     end
     pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
     resize()
@@ -245,6 +257,7 @@ function TabProto:Section(opts)
     sec.Name = rand()
     sec.Size = UDim2.new(1,0,0,44)
     sec.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    sec.BorderSizePixel = 0
     sec.Parent = self.page
     local secCorner = Instance.new("UICorner")
     secCorner.CornerRadius = UDim.new(1,0)
@@ -284,6 +297,7 @@ function TabProto:Button(opts)
     b.Size = UDim2.new(1,0,0,46)
     b.AnchorPoint = Vector2.new(0,0)
     b.Parent = self.page
+    b.AutoButtonColor = false
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(1,0)
     c.Parent = b
@@ -327,6 +341,7 @@ function TabProto:Toggle(opts)
     label.TextYAlignment = Enum.TextYAlignment.Center
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = bg
+    -- Toggle Pill
     local pill = Instance.new("TextButton")
     pill.Name = rand()
     pill.Size = UDim2.new(0,44,0,24)
@@ -348,6 +363,9 @@ function TabProto:Toggle(opts)
     dotCorner.CornerRadius = UDim.new(1,0)
     dotCorner.Parent = dot
     local value = opts.Default
+    -- Center the toggle vertically
+    pill.LayoutOrder = 100
+    -- Toggle logic
     local function set(val,invoke)
         value = val
         if value then
@@ -431,6 +449,7 @@ function TabProto:Slider(opts)
     local thumbCorner = Instance.new("UICorner")
     thumbCorner.CornerRadius = UDim.new(1,0)
     thumbCorner.Parent = thumb
+    thumb.ZIndex = sliderBack.ZIndex + 1
     local dragging = false
     local value = opts.Default
     local function set(val,invoke)
@@ -443,28 +462,32 @@ function TabProto:Slider(opts)
         if invoke then pcall(opts.Callback, val) end
     end
     set(value, false)
+    local function getSliderValueFromX(x)
+        local absPos = sliderBack.AbsolutePosition.X
+        local absSize = sliderBack.AbsoluteSize.X
+        local rel = math.clamp((x - absPos)/absSize,0,1)
+        local val = math.floor((opts.Min + rel*(opts.Max-opts.Min))*100)/100
+        return val
+    end
     sliderBack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
-            local function setValue(x)
-                local rel = math.clamp((x - sliderBack.AbsolutePosition.X)/sliderBack.AbsoluteSize.X,0,1)
-                local val = math.floor((opts.Min + rel*(opts.Max-opts.Min))*100)/100
-                set(val, true)
-            end
-            setValue(UserInputService:GetMouseLocation().X)
-            local move, up
-            move = UserInputService.InputChanged:Connect(function(input2)
-                if input2.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-                    setValue(input2.Position.X)
-                end
-            end)
-            up = UserInputService.InputEnded:Connect(function(input2)
-                if input2.UserInputType == Enum.UserInputType.MouseButton1 then
-                    dragging = false
-                    move:Disconnect()
-                    up:Disconnect()
-                end
-            end)
+            set(getSliderValueFromX(UserInputService:GetMouseLocation().X), true)
+        end
+    end)
+    thumb.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            set(getSliderValueFromX(UserInputService:GetMouseLocation().X), true)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
         end
     end)
     return f
@@ -521,6 +544,7 @@ function TabProto:Dropdown(opts)
     local dropCorner = Instance.new("UICorner")
     dropCorner.CornerRadius = UDim.new(1,0)
     dropCorner.Parent = dropBtn
+    -- Dropdown logic
     local ddOpen = false
     local ddFrame = nil
     local mainGui = bg:FindFirstAncestorOfClass("ScreenGui")
@@ -536,9 +560,9 @@ function TabProto:Dropdown(opts)
         ddOpen = true
         ddFrame = Instance.new("Frame")
         ddFrame.Name = rand()
-        ddFrame.Size = UDim2.new(0,130,0,#opts.Values*30)
-        local pos = bg.AbsolutePosition + Vector2.new(bg.AbsoluteSize.X-130, bg.AbsoluteSize.Y)
-        ddFrame.Position = UDim2.new(0, pos.X, 0, pos.Y)
+        local count = #opts.Values
+        ddFrame.Size = UDim2.new(0,130,0,count*30)
+        ddFrame.Position = UDim2.new(0, dropBtn.AbsolutePosition.X, 0, dropBtn.AbsolutePosition.Y + dropBtn.AbsoluteSize.Y + 4)
         ddFrame.BackgroundColor3 = Color3.fromRGB(44,44,44)
         ddFrame.ZIndex = 1000
         ddFrame.Parent = mainGui
@@ -569,10 +593,10 @@ function TabProto:Dropdown(opts)
                 closeDropdown()
             end)
         end
+        -- Click outside to close
         local connection
         connection = UserInputService.InputBegan:Connect(function(input)
             if ddOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
-                if not ddFrame then return end
                 local mouse = UserInputService:GetMouseLocation()
                 local abs = ddFrame.AbsolutePosition
                 local size = ddFrame.AbsoluteSize
