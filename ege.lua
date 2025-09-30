@@ -1,4 +1,3 @@
--- WindUI-like Roblox UI Library (Fixed & Beautified)
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -126,10 +125,9 @@ function WindUI:CreateWindow(opts)
     local tabs = {}
     local selectedTab = nil
 
-    -- Dragging (unchanged)
     local dragging, dragInput, dragStart, startPos
     top.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = win.Position
@@ -139,7 +137,7 @@ function WindUI:CreateWindow(opts)
         end
     end)
     top.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
     end)
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
@@ -158,7 +156,7 @@ function WindUI:CreateWindow(opts)
     end)
     local draggingOpen, dragInputOpen, dragStartOpen, startPosOpen
     openBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingOpen = true
             dragStartOpen = input.Position
             startPosOpen = openBtn.Position
@@ -168,7 +166,7 @@ function WindUI:CreateWindow(opts)
         end
     end)
     openBtn.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then dragInputOpen = input end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInputOpen = input end
     end)
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInputOpen and draggingOpen then
@@ -228,7 +226,7 @@ function WinProto:Tab(tabOpts)
     page.Visible = false
     page.Parent = self.contentScroll
     local pageLayout = Instance.new("UIListLayout")
-    pageLayout.Padding = UDim.new(0,18) -- Spacing between elements
+    pageLayout.Padding = UDim.new(0,18)
     pageLayout.FillDirection = Enum.FillDirection.Vertical
     pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
     pageLayout.Parent = page
@@ -341,12 +339,11 @@ function TabProto:Toggle(opts)
     label.TextYAlignment = Enum.TextYAlignment.Center
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = bg
-    -- Toggle Pill
     local pill = Instance.new("TextButton")
     pill.Name = rand()
     pill.Size = UDim2.new(0,44,0,24)
     pill.BackgroundColor3 = Color3.fromRGB(90,90,90)
-    pill.Position = UDim2.new(1,-62,0.5,-12)
+    pill.Position = UDim2.new(1,-62,0.5,0)
     pill.AnchorPoint = Vector2.new(0,0.5)
     pill.Parent = bg
     pill.AutoButtonColor = false
@@ -356,23 +353,22 @@ function TabProto:Toggle(opts)
     local dot = Instance.new("Frame")
     dot.Name = rand()
     dot.Size = UDim2.new(0,18,0,18)
-    dot.Position = opts.Default and UDim2.new(1,-20,0.5,-9) or UDim2.new(0,2,0.5,-9)
+    dot.Position = opts.Default and UDim2.new(1,-20,0.5,0) or UDim2.new(0,2,0.5,0)
+    dot.AnchorPoint = Vector2.new(0.5,0.5)
     dot.BackgroundColor3 = Color3.fromRGB(255,255,255)
     dot.Parent = pill
     local dotCorner = Instance.new("UICorner")
     dotCorner.CornerRadius = UDim.new(1,0)
     dotCorner.Parent = dot
     local value = opts.Default
-    -- Center the toggle vertically
     pill.LayoutOrder = 100
-    -- Toggle logic
     local function set(val,invoke)
         value = val
         if value then
-            dot.Position = UDim2.new(1,-20,0.5,-9)
+            dot.Position = UDim2.new(1,-20,0.5,0)
             pill.BackgroundColor3 = Color3.fromRGB(32,160,80)
         else
-            dot.Position = UDim2.new(0,2,0.5,-9)
+            dot.Position = UDim2.new(0,2,0.5,0)
             pill.BackgroundColor3 = Color3.fromRGB(90,90,90)
         end
         if invoke then pcall(opts.Callback, value) end
@@ -469,25 +465,31 @@ function TabProto:Slider(opts)
         local val = math.floor((opts.Min + rel*(opts.Max-opts.Min))*100)/100
         return val
     end
+    local function beginDrag(input)
+        dragging = true
+        set(getSliderValueFromX(input.Position.X), true)
+        local move, up
+        move = UserInputService.InputChanged:Connect(function(input2)
+            if dragging and (input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch) then
+                set(getSliderValueFromX(input2.Position.X), true)
+            end
+        end)
+        up = UserInputService.InputEnded:Connect(function(input2)
+            if input2.UserInputType == Enum.UserInputType.MouseButton1 or input2.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+                move:Disconnect()
+                up:Disconnect()
+            end
+        end)
+    end
     sliderBack.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            set(getSliderValueFromX(UserInputService:GetMouseLocation().X), true)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            beginDrag(input)
         end
     end)
     thumb.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            set(getSliderValueFromX(UserInputService:GetMouseLocation().X), true)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            beginDrag(input)
         end
     end)
     return f
@@ -544,7 +546,6 @@ function TabProto:Dropdown(opts)
     local dropCorner = Instance.new("UICorner")
     dropCorner.CornerRadius = UDim.new(1,0)
     dropCorner.Parent = dropBtn
-    -- Dropdown logic
     local ddOpen = false
     local ddFrame = nil
     local mainGui = bg:FindFirstAncestorOfClass("ScreenGui")
@@ -593,11 +594,15 @@ function TabProto:Dropdown(opts)
                 closeDropdown()
             end)
         end
-        -- Click outside to close
         local connection
         connection = UserInputService.InputBegan:Connect(function(input)
-            if ddOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
-                local mouse = UserInputService:GetMouseLocation()
+            if ddOpen and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                local mouse
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    mouse = input.Position
+                else
+                    mouse = UserInputService:GetMouseLocation()
+                end
                 local abs = ddFrame.AbsolutePosition
                 local size = ddFrame.AbsoluteSize
                 if not (mouse.X >= abs.X and mouse.X <= abs.X+size.X and mouse.Y >= abs.Y and mouse.Y <= abs.Y+size.Y) then
