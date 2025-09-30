@@ -24,7 +24,7 @@ function WindUI:CreateWindow(opts)
     local win = Instance.new("Frame")
     win.Name = rand()
     win.Size = sz
-    win.Position = UDim2.new(0.5, -sz.X.Offset / 2, 0.5, -sz.Y.Offset / 2)
+    win.Position = UDim2.new(0.5, -sz.X.Offset/2, 0.5, -sz.Y.Offset/2)
     win.BackgroundColor3 = Color3.fromRGB(24,24,24)
     win.AnchorPoint = Vector2.new(0,0)
     win.BorderSizePixel = 0
@@ -107,9 +107,8 @@ function WindUI:CreateWindow(opts)
     contentScroll.BackgroundColor3 = Color3.fromRGB(32,32,32)
     contentScroll.BorderSizePixel = 0
     contentScroll.Parent = win
-    contentScroll.CanvasSize = UDim2.new(0,0,1,0)
+    contentScroll.CanvasSize = UDim2.new(0,0,0,0)
     contentScroll.ScrollBarThickness = 7
-    contentScroll.AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
     contentScroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
     local contentCorner = Instance.new("UICorner")
     contentCorner.CornerRadius = UDim.new(0,12)
@@ -147,7 +146,6 @@ function WindUI:CreateWindow(opts)
         win.Visible = true
         openBtn.Visible = false
     end)
-
     local draggingOpen, dragInputOpen, dragStartOpen, startPosOpen
     openBtn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -185,6 +183,7 @@ function WindUI:CreateWindow(opts)
             tab.page.Visible = true
             self.contentScroll.CanvasPosition = Vector2.new(0,0)
             selectedTab = tab
+            if tab._resize then tab:_resize() end
         end
     }, WinProto)
 end
@@ -221,10 +220,19 @@ function WinProto:Tab(tabOpts)
     pageLayout.Padding = UDim.new(0,15)
     pageLayout.FillDirection = Enum.FillDirection.Vertical
     pageLayout.Parent = page
+
+    local function resize()
+        page.Size = UDim2.new(1,0,0,pageLayout.AbsoluteContentSize.Y)
+        self.contentScroll.CanvasSize = UDim2.new(0,0,0,pageLayout.AbsoluteContentSize.Y+16)
+    end
+    pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+    resize()
+
     local tabObj = setmetatable({
         btn=btn,
         page=page,
-        parentWin=self
+        parentWin=self,
+        _resize=resize
     }, TabProto)
     table.insert(self.tabs, tabObj)
     btn.MouseButton1Click:Connect(function() self:selectTab(tabObj) end)
@@ -421,7 +429,7 @@ function TabProto:Slider(opts)
     thumbCorner.Parent = thumb
     local dragging = false
     local value = opts.Default
-    local function set(val, invoke)
+    local function set(val,invoke)
         val = math.clamp(val, opts.Min, opts.Max)
         local rel = (val-opts.Min)/(opts.Max-opts.Min)
         sliderFill.Size = UDim2.new(rel,0,1,0)
@@ -509,7 +517,6 @@ function TabProto:Dropdown(opts)
     local ddOpen = false
     local ddFrame = nil
     local mainGui = bg:FindFirstAncestorOfClass("ScreenGui")
-
     local function closeDropdown()
         if ddOpen and ddFrame then
             ddFrame:Destroy()
@@ -517,7 +524,6 @@ function TabProto:Dropdown(opts)
             ddFrame = nil
         end
     end
-
     dropBtn.MouseButton1Click:Connect(function()
         if ddOpen then closeDropdown() return end
         ddOpen = true
